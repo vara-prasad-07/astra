@@ -91,11 +91,23 @@ class Timeline(Agent):
 
         error_pattern = _find(evidence, "error_pattern")
         first_error = None
+        first_error_since_deploy = None
         window_start = None
         if error_pattern:
             detail = error_pattern.get("detail") or {}
             first_error = _parse_ts(detail.get("first_seen"))
             window_start = _parse_ts(detail.get("window_start"))
+            # The log window can still hold errors from an earlier deploy/test
+            # cycle; what causality actually needs is the first occurrence at
+            # or after *this* deployment, not the earliest in the whole window.
+            timestamps = [
+                ts for raw in detail.get("timestamps") or [] if (ts := _parse_ts(raw))
+            ]
+            if deploy_at and timestamps:
+                since_deploy = [ts for ts in timestamps if ts >= deploy_at]
+                first_error_since_deploy = min(since_deploy) if since_deploy else None
+            else:
+                first_error_since_deploy = first_error
             if first_error:
                 events.append(
                     {
@@ -106,6 +118,16 @@ class Timeline(Agent):
                         f"({detail.get('count')} total in window)",
                     }
                 )
+                if first_error_since_deploy and first_error_since_deploy != first_error:
+                    events.append(
+                        {
+                            "at": first_error_since_deploy,
+                            "kind": "error",
+                            "source": "datadog",
+                            "description": f"first {detail.get('error_type')} "
+                            "since this deployment (earlier matches predate it)",
+                        }
+                    )
 
         events.append(
             {
@@ -118,18 +140,18 @@ class Timeline(Agent):
         events.sort(key=lambda item: item["at"])
 
         deploy_precedes_errors = bool(
-            deploy_at and first_error and deploy_at < first_error
+            deploy_at and first_error_since_deploy and deploy_at < first_error_since_deploy
         )
         gap_seconds = (
-            (first_error - deploy_at).total_seconds()
-            if deploy_at and first_error
+            (first_error_since_deploy - deploy_at).total_seconds()
+            if deploy_at and first_error_since_deploy
             else None
         )
         signature_new = bool(
             deploy_at
-            and first_error
+            and first_error_since_deploy
             and window_start
-            and window_start < deploy_at < first_error
+            and window_start < deploy_at < first_error_since_deploy
         )
 
         timeline = [

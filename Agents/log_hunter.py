@@ -118,6 +118,7 @@ class LogHunter(Agent):
                 first_seen=first_seen.isoformat(),
                 last_seen=last_seen.isoformat(),
                 window_start=start.isoformat(),
+                timestamps=[ts.isoformat() for ts in timestamps],
                 stack_trace=stack_trace.strip(),
                 code_refs=refs,
                 endpoints=dict(endpoints),
