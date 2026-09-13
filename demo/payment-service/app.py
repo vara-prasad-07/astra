@@ -110,6 +110,7 @@ async def charge(request: Request) -> JSONResponse:
     state["requests"] += 1
     try:
         payload["currency"] = payload["currency"].upper()
+        print(f"charge request: {payload}")
         result = payment_validator.validate(payload, state["version"])
     except Exception as exc:
         state["errors"] += 1
