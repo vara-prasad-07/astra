@@ -1,9 +1,12 @@
 """Deployment control: the one place that can change production state.
 
-If the breakable demo microservice is running, the rollback is genuinely real —
-the service stops erroring and the health check observes it. Otherwise the
-rollback is simulated against fixtures. Either way the Operator's verification
-sequence is identical.
+Three tiers, most-real first: if Render is configured, rollback means asking
+Render to redeploy the build that was live before the bad one — a real
+production rollback. Otherwise, if the breakable demo microservice is
+reachable, rollback flips its in-process version flag — still a real HTTP
+call and a real state change, just not a real redeploy. Otherwise the
+rollback is simulated against fixtures. Either way the Operator's
+verification sequence is identical.
 """
 
 from __future__ import annotations
@@ -14,6 +17,8 @@ import httpx
 
 from config import settings
 from demo import fixtures
+
+from . import render
 
 _simulated_rolled_back: set[str] = set()
 
@@ -35,12 +40,17 @@ async def service_is_reachable() -> bool:
 
 
 async def active_deployment(service: str) -> tuple[dict[str, Any] | None, str]:
-    """What the live service actually reports running, if it's reachable.
+    """What's really running, from the most authoritative source available.
 
     Preferred over GitHub's deployment fixtures/API: those carry a synthetic
     or unrelated deployed_at, which breaks the deploy-precedes-errors causality
     check against a *real* incident's real error timestamps.
     """
+    if render.live():
+        result, mode = await render.active_deployment(service)
+        if result is not None:
+            return result, mode
+
     stats = await _demo_service_call("/admin/stats")
     if stats is None or not stats.get("deployed_at"):
         return None, "unreachable"
@@ -60,6 +70,12 @@ async def active_deployment(service: str) -> tuple[dict[str, Any] | None, str]:
 
 
 async def rollback(deployment_id: str, service: str) -> dict[str, Any]:
+    if render.live():
+        # This is the real production path: Render redeploys the previous
+        # build. Its result is authoritative — don't fall through to the
+        # weaker tiers below even if it reports failure.
+        return await render.rollback(deployment_id, service)
+
     live_result = await _demo_service_call("/admin/rollback", method="POST")
     if live_result is not None:
         return {

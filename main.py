@@ -120,8 +120,20 @@ async def pagerduty_webhook(request: Request, background: BackgroundTasks) -> JS
     return JSONResponse({"accepted": True, "incident_id": incident_id}, status_code=202)
 
 
+async def _run_slack_decision(incident_id: str, decision: str, approver: str) -> None:
+    """A real rollback (Render) can take well over Slack's ~3s ack window, so
+    the decision runs off the request thread; failures are reported into the
+    incident's own Slack thread instead of the (already-sent) HTTP response."""
+    try:
+        await decide(incident_id, decision, approver, source="slack")
+    except (KeyError, ValueError) as exc:
+        state = db.load_state(incident_id)
+        thread_ts = (state or {}).get("slack_ref", {}).get("ts")
+        await slack.post_thread_update(incident_id, thread_ts, f"NIGHTWATCH: {exc}")
+
+
 @app.post("/webhooks/slack")
-async def slack_webhook(request: Request) -> JSONResponse:
+async def slack_webhook(request: Request, background: BackgroundTasks) -> JSONResponse:
     body = await request.body()
     if not slack.verify_signature(
         body,
@@ -141,15 +153,14 @@ async def slack_webhook(request: Request) -> JSONResponse:
     if not interaction:
         return JSONResponse({"ignored": True})
 
-    try:
-        await decide(
-            interaction["incident_id"],
-            interaction["decision"],
-            interaction["approver"],
-            source="slack",
-        )
-    except (KeyError, ValueError) as exc:
-        return JSONResponse({"text": str(exc)}, status_code=200)
+    # Ack immediately: a real rollback (Render) can run well past Slack's
+    # retry timeout, and a retry landing here mid-rollback would double-fire it.
+    background.add_task(
+        _run_slack_decision,
+        interaction["incident_id"],
+        interaction["decision"],
+        interaction["approver"],
+    )
     return JSONResponse({"text": f"NIGHTWATCH recorded: {interaction['decision']}"})
 
 

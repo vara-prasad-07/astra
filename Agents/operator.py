@@ -19,8 +19,8 @@ from orchestrator.state import SwarmState
 
 from .base import Agent
 
-HEALTH_ATTEMPTS = 3
-HEALTH_INTERVAL_SECONDS = 0.5
+HEALTH_ATTEMPTS = 5
+HEALTH_INTERVAL_SECONDS = 2.0
 
 
 def format_duration(seconds: float | None) -> str:

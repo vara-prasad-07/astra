@@ -77,6 +77,13 @@ class Settings:
                 "SLACK_CHANNEL": _env("SLACK_CHANNEL"),
             },
         )
+        self.render = IntegrationConfig(
+            "Render",
+            {
+                "RENDER_API_KEY": _env("RENDER_API_KEY"),
+                "RENDER_SERVICE_ID": _env("RENDER_SERVICE_ID"),
+            },
+        )
 
         self.pagerduty_webhook_secret = _env("PAGERDUTY_WEBHOOK_SECRET")
         self.slack_signing_secret = _env("SLACK_SIGNING_SECRET")
@@ -106,7 +113,7 @@ class Settings:
 
     @property
     def integrations(self) -> list[IntegrationConfig]:
-        return [self.pagerduty, self.datadog, self.github, self.slack]
+        return [self.pagerduty, self.datadog, self.github, self.slack, self.render]
 
     def is_live(self, integration: IntegrationConfig) -> bool:
         return integration.live and not self.force_demo
