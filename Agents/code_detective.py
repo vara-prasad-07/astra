@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
 from typing import Any
 
-from integrations import github
+from integrations import deploy, github
 from orchestrator.state import SwarmState
 
 from .base import Agent
@@ -47,7 +47,11 @@ class CodeDetective(Agent):
         lookback = trigger - timedelta(hours=24)
 
         pulls, mode = await github.recent_pull_requests(service, lookback)
-        deploys, deploy_mode = await github.deployments(service, trigger)
+
+        active, deploy_mode = await deploy.active_deployment(service)
+        if active is None:
+            deploys, deploy_mode = await github.deployments(service, trigger)
+            active = next((d for d in deploys if d.get("status") == "active"), None)
 
         refs = _stack_refs(state.get("evidence") or [])
         failing_files = {PurePosixPath(ref["file"]).name for ref in refs}
@@ -131,7 +135,6 @@ class CodeDetective(Agent):
             ).model_dump(mode="json")
         )
 
-        active = next((d for d in deploys if d.get("status") == "active"), None)
         if active:
             evidence.append(
                 self.evidence(

@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -35,9 +36,16 @@ if datadog_logs.install(log):
 
 app = FastAPI(title="payment-service")
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 state: dict[str, Any] = {
     "version": GOOD_VERSION,
     "deployment_id": "8419",
+    "previous_version": None,
+    "previous_deployment_id": None,
+    "deployed_at": _now(),
     "requests": 0,
     "errors": 0,
     "recent_errors": [],
@@ -54,6 +62,9 @@ async def stats() -> dict[str, Any]:
     return {
         "version": state["version"],
         "deployment": state["deployment_id"],
+        "previous_version": state["previous_version"],
+        "previous_deployment": state["previous_deployment_id"],
+        "deployed_at": state["deployed_at"],
         "requests": state["requests"],
         "errors": state["errors"],
         "recent_errors": state["recent_errors"][-5:],
@@ -63,7 +74,15 @@ async def stats() -> dict[str, Any]:
 @app.post("/admin/deploy")
 async def deploy() -> dict[str, Any]:
     """Ship deployment 8421 — the one that carries the regression."""
-    state.update(version=BAD_VERSION, deployment_id="8421", requests=0, errors=0)
+    state.update(
+        previous_version=state["version"],
+        previous_deployment_id=state["deployment_id"],
+        version=BAD_VERSION,
+        deployment_id="8421",
+        deployed_at=_now(),
+        requests=0,
+        errors=0,
+    )
     state["recent_errors"].clear()
     log.warning("deployed 8421 (%s)", BAD_VERSION)
     return {"version": state["version"], "deployment": state["deployment_id"]}
@@ -71,7 +90,15 @@ async def deploy() -> dict[str, Any]:
 
 @app.post("/admin/rollback")
 async def rollback() -> dict[str, Any]:
-    state.update(version=GOOD_VERSION, deployment_id="8419", requests=0, errors=0)
+    state.update(
+        previous_version=state["version"],
+        previous_deployment_id=state["deployment_id"],
+        version=GOOD_VERSION,
+        deployment_id="8419",
+        deployed_at=_now(),
+        requests=0,
+        errors=0,
+    )
     state["recent_errors"].clear()
     log.warning("rolled back to %s", GOOD_VERSION)
     return {"version": state["version"], "deployment": state["deployment_id"]}

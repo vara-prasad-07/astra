@@ -34,6 +34,31 @@ async def service_is_reachable() -> bool:
     return await _demo_service_call("/health") is not None
 
 
+async def active_deployment(service: str) -> tuple[dict[str, Any] | None, str]:
+    """What the live service actually reports running, if it's reachable.
+
+    Preferred over GitHub's deployment fixtures/API: those carry a synthetic
+    or unrelated deployed_at, which breaks the deploy-precedes-errors causality
+    check against a *real* incident's real error timestamps.
+    """
+    stats = await _demo_service_call("/admin/stats")
+    if stats is None or not stats.get("deployed_at"):
+        return None, "unreachable"
+    return (
+        {
+            "id": stats.get("deployment"),
+            "service": service,
+            "version": stats.get("version"),
+            "previous_version": stats.get("previous_version") or "",
+            "deployed_at": stats.get("deployed_at"),
+            "pr_number": None,
+            "sha": "",
+            "status": "active",
+        },
+        "live-demo-service",
+    )
+
+
 async def rollback(deployment_id: str, service: str) -> dict[str, Any]:
     live_result = await _demo_service_call("/admin/rollback", method="POST")
     if live_result is not None:
