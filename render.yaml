@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: payment-service
+    runtime: docker
+    rootDir: demo/payment-service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    plan: starter
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: DD_API_KEY
+        sync: false
+      - key: DD_SITE
+        value: datadoghq.com
+      - key: DD_SERVICE
+        value: payment-service
+      - key: DD_ENV
+        value: production

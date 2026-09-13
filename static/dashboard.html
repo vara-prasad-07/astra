@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NIGHTWATCH</title>
+<style>
+  :root {
+    --bg: #0b1020; --panel: #121a30; --panel-2: #0f1729; --line: #23304f;
+    --text: #e6ecf8; --muted: #8ea0c4; --accent: #5b8cff; --ok: #34d399;
+    --warn: #fbbf24; --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.55 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 18px 22px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    background: linear-gradient(180deg, #131c33, #0b1020);
+  }
+  h1 { font-size: 18px; margin: 0; letter-spacing: 3px; font-weight: 700; }
+  .tag { color: var(--muted); font-size: 12px; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  .pill {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted); background: var(--panel-2);
+  }
+  .pill.live { color: var(--ok); border-color: #1d5c46; }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 7px;
+    padding: 9px 15px; font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+  button.danger { background: #7f2230; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 22px 40px; }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  section {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 15px 17px; min-width: 0;
+  }
+  section h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px;
+    color: var(--muted); margin: 0 0 12px;
+  }
+  .agents { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .agent {
+    border: 1px solid var(--line); border-left: 3px solid #33405f;
+    border-radius: 7px; padding: 9px 11px; background: var(--panel-2);
+    transition: border-color .18s, background .18s;
+  }
+  .agent .n { font-weight: 600; font-size: 13px; }
+  .agent .s { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .agent.running { border-left-color: var(--warn); background: #1a1f33; animation: pulse 1s infinite; }
+  .agent.finished { border-left-color: var(--ok); }
+  .agent.failed { border-left-color: var(--bad); }
+  @keyframes pulse { 50% { opacity: .55; } }
+  .hyp { margin-bottom: 11px; }
+  .hyp .row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .bar { height: 7px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px;
+           transition: width .5s ease; }
+  .hyp.top .bar i { background: linear-gradient(90deg, #5b8cff, #34d399); }
+  .sig { font-size: 11px; color: var(--muted); margin: 4px 0 0 10px; }
+  .sig .y { color: var(--ok); } .sig .n { color: #5d6b8c; }
+  ul { margin: 0; padding-left: 17px; } li { margin-bottom: 5px; }
+  .tl { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .tl div { padding: 2px 0; color: var(--muted); }
+  .tl b { color: var(--text); font-weight: 600; }
+  #log {
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+    max-height: 230px; overflow-y: auto; color: var(--muted);
+  }
+  #log div { padding: 1px 0; }
+  .verdict {
+    border: 1px solid var(--line); border-radius: 8px; padding: 13px;
+    background: var(--panel-2); margin-bottom: 13px;
+  }
+  .verdict .rc { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .conf { font-size: 26px; font-weight: 700; color: var(--ok); }
+  .actions { display: flex; gap: 8px; margin-top: 13px; flex-wrap: wrap; }
+  .check { font-size: 12.5px; padding: 3px 0; }
+  .check .ok { color: var(--ok); } .check .no { color: var(--bad); }
+  .check small { color: var(--muted); display: block; margin-left: 20px; }
+  .muted { color: var(--muted); }
+  .gate {
+    font-size: 12px; color: var(--warn); border: 1px dashed #4a3a1d;
+    background: #1d1a12; border-radius: 7px; padding: 9px 11px; margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>NIGHTWATCH</h1>
+  <span class="tag">Autonomous Incident Commander Swarm</span>
+  <button id="trigger">Trigger demo incident</button>
+  <div class="pills" id="pills"></div>
+</header>
+
+<main>
+  <section>
+    <h2>Swarm</h2>
+    <div class="agents" id="agents"></div>
+    <h2 style="margin-top:18px">Activity</h2>
+    <div id="log"></div>
+  </section>
+
+  <section>
+    <h2>Commander verdict</h2>
+    <div id="verdict"><p class="muted">No active incident. Trigger one to watch the swarm work.</p></div>
+    <div id="hypotheses"></div>
+    <div id="approval"></div>
+    <div id="checks"></div>
+  </section>
+
+  <section>
+    <h2>Timeline</h2>
+    <div class="tl" id="timeline"><p class="muted">—</p></div>
+  </section>
+
+  <section>
+    <h2>Evidence</h2>
+    <div id="evidence"><p class="muted">—</p></div>
+  </section>
+</main>
+
+<script>
+const AGENTS = [
+  ["sentinel", "Incident Investigator", "PagerDuty"],
+  ["log_hunter", "Log Detective", "Datadog"],
+  ["code_detective", "Code Archaeologist", "GitHub"],
+  ["metrics", "Metrics Analyst", "Datadog"],
+  ["timeline", "Timeline Detective", "Correlated"],
+  ["correlation", "Correlation Agent", "All agents"],
+  ["commander", "Incident Commander", "Correlation"],
+  ["operator", "Action Agent", "Slack approval"],
+];
+
+let currentIncident = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function renderAgents() {
+  $("agents").innerHTML = AGENTS.map(([id, name, src]) =>
+    `<div class="agent" id="a-${id}">
+       <div class="n">${esc(name)}</div>
+       <div class="s" id="s-${id}">${esc(src)} · idle</div>
+     </div>`).join("");
+}
+
+function setAgent(id, status, detail) {
+  const el = $("a-" + id);
+  if (!el) return;
+  el.className = "agent " + status;
+  const src = (AGENTS.find(a => a[0] === id) || [, , ""])[2];
+  $("s-" + id).textContent = `${src} · ${status}${detail ? " · " + detail : ""}`;
+}
+
+function log(line) {
+  const el = $("log");
+  const row = document.createElement("div");
+  row.textContent = new Date().toLocaleTimeString() + "  " + line;
+  el.prepend(row);
+  while (el.childNodes.length > 200) el.lastChild.remove();
+}
+
+async function loadStatus() {
+  const data = await (await fetch("/api/status")).json();
+  $("pills").innerHTML = data.integrations.map(i =>
+    `<span class="pill ${i.mode === "live" ? "live" : ""}">${esc(i.name)}: ${esc(i.mode)}</span>`
+  ).join("") + `<span class="pill">LLM: ${esc(data.llm)}</span>`;
+}
+
+function renderVerdict(rec) {
+  if (!rec) return;
+  $("verdict").innerHTML = `
+    <div class="verdict">
+      <div class="rc">${esc(rec.root_cause)}</div>
+      <div class="conf">${Math.round(rec.confidence * 100)}%</div>
+      <div class="muted" style="font-size:12px">confidence · risk: ${esc(rec.risk)} — ${esc(rec.risk_notes)}</div>
+      <div style="margin-top:10px;font-size:13px">
+        Recommended action: <b>${esc(rec.action_type)}</b> ${esc(rec.action_target || "")}
+      </div>
+    </div>`;
+}
+
+function renderHypotheses(list) {
+  $("hypotheses").innerHTML = (list || []).map((h, i) => `
+    <div class="hyp ${i === 0 ? "top" : ""}">
+      <div class="row"><span>${esc(h.name)}</span><span>${Math.round(h.score * 100)}%</span></div>
+      <div class="bar"><i style="width:${Math.round(h.score * 100)}%"></i></div>
+      ${(h.signals || []).map(s =>
+        `<div class="sig"><span class="${s.matched ? "y" : "n"}">${s.matched ? "+" : "-"}</span>
+         ${esc(s.description)} <span class="n">(${s.weight})</span> — ${esc(s.rationale)}</div>`
+      ).join("")}
+    </div>`).join("");
+}
+
+function renderApproval(rec, incidentId) {
+  if (!rec) return;
+  $("approval").innerHTML = `
+    <div class="gate">No production action has been taken. NIGHTWATCH requires a human decision.</div>
+    <div class="actions">
+      <button onclick="decide('approve')">Approve ${esc(rec.action_type)}</button>
+      <button class="danger" onclick="decide('reject')">Reject</button>
+      <button class="ghost" onclick="decide('investigate')">Investigate Further</button>
+    </div>`;
+  currentIncident = incidentId;
+}
+
+async function decide(decision) {
+  if (!currentIncident) return;
+  document.querySelectorAll("#approval button").forEach(b => b.disabled = true);
+  log(`human decision: ${decision}`);
+  const res = await fetch(`/api/incidents/${currentIncident}/decision`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision, approver: "dashboard-operator" }),
+  });
+  const data = await res.json();
+  if (!res.ok) { log("error: " + (data.detail || res.status)); return; }
+  $("approval").innerHTML = `<div class="gate">Decision recorded: ${esc(decision)} — status ${esc(data.status)}</div>`;
+  if (data.action_result) renderChecks(data.action_result);
+}
+
+function renderChecks(action) {
+  const rows = (action.checks || []).map(c =>
+    `<div class="check"><span class="${c.passed ? "ok" : "no"}">${c.passed ? "[ok]" : "[!!]"}</span>
+     ${esc(c.step)}<small>${esc(c.detail)}</small></div>`).join("");
+  const mttr = action.mttr_seconds != null
+    ? (action.mttr_seconds < 60 ? action.mttr_seconds.toFixed(1) + "s"
+                                : (action.mttr_seconds / 60).toFixed(1) + " min")
+    : "—";
+  $("checks").innerHTML = `<h2 style="margin-top:16px">Verification sequence</h2>${rows}
+    <div style="margin-top:10px;font-size:13px">
+      Health restored: <b>${action.health_restored ? "yes" : "no"}</b> ·
+      error rate after: <b>${action.error_rate_after}%</b> · MTTR: <b>${mttr}</b>
+    </div>`;
+}
+
+function renderTimeline(events) {
+  $("timeline").innerHTML = (events || []).map(e =>
+    `<div><b>${esc(e.clock)}</b>  ${esc(e.description)} <span class="n">· ${esc(e.source)}</span></div>`
+  ).join("") || '<p class="muted">—</p>';
+}
+
+function renderEvidence(items) {
+  $("evidence").innerHTML = "<ul>" + (items || []).map(e =>
+    `<li><b>${esc(e.codename)}</b> · ${esc(e.kind)}<br><span class="muted">${esc(e.summary)}</span></li>`
+  ).join("") + "</ul>";
+}
+
+async function refresh(incidentId) {
+  const res = await fetch(`/api/incidents/${incidentId}`);
+  if (!res.ok) return;
+  const state = await res.json();
+  renderVerdict(state.recommendation);
+  renderHypotheses(state.hypotheses);
+  renderTimeline(state.timeline);
+  renderEvidence(state.evidence);
+  if (state.recommendation && !state.action_result) renderApproval(state.recommendation, incidentId);
+  if (state.action_result) renderChecks(state.action_result);
+}
+
+$("trigger").onclick = async () => {
+  $("trigger").disabled = true;
+  renderAgents();
+  ["verdict", "hypotheses", "approval", "checks"].forEach(id => $(id).innerHTML = "");
+  $("verdict").innerHTML = '<p class="muted">Swarm investigating…</p>';
+  const data = await (await fetch("/api/demo/trigger", { method: "POST" })).json();
+  currentIncident = data.incident_id;
+  log("incident " + data.incident_id + " triggered");
+  setTimeout(() => { $("trigger").disabled = false; }, 2500);
+};
+
+const stream = new EventSource("/api/events");
+stream.onmessage = (msg) => {
+  const e = JSON.parse(msg.data);
+  if (e.kind === "agent") {
+    setAgent(e.codename, e.status, e.detail || (e.evidence_count ? e.evidence_count + " findings" : ""));
+    log(`${e.agent}: ${e.status}${e.detail ? " — " + e.detail : ""}`);
+  } else if (e.kind === "incident") {
+    log(`incident ${e.incident_id}: ${e.status}`);
+    if (e.status === "awaiting_approval" || e.status === "resolved") refresh(e.incident_id);
+  } else if (e.kind === "approval") {
+    log(`approval: ${e.decision} by ${e.approver}`);
+  } else if (e.kind === "verification") {
+    log(`verify [${e.passed ? "ok" : "FAIL"}] ${e.step}`);
+  }
+};
+
+renderAgents();
+loadStatus();
+</script>
+</body>
+</html>
